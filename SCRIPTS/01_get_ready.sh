@@ -43,7 +43,7 @@ sirpdboy_repo="https://github.com/sirpdboy/sirpdboy-package"
 sbwdaednext_repo="https://github.com/sbwml/luci-app-daed-next"
 lucidaednext_repo="https://github.com/QiuSimons/luci-app-daed-next"
 sbwfw876_repo="https://github.com/sbwml/openwrt_helloworld"
-sbw_pkg_repo="https://github.com/sbwml/openwrt_pkgs"
+sbw_pkg_repo="https://github.com/8688Add/openwrt_pkgs"
 natmap_repo="https://github.com/blueberry-pie-11/luci-app-natmap"
 
 # 开始克隆仓库，并行执行

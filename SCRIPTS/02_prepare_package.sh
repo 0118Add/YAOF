@@ -127,7 +127,7 @@ sed -i 's,noinitrd,noinitrd mitigations=off,g' target/linux/x86/image/grub-pc.cf
 # fix PF_RING-8.0.0
 wget -qO - https://github.com/SergeyFilippov/openwrt/commit/e66ca39.patch | patch -p1
 # dae ready
-cp -rf ../sbw_pkg/dae ./package/new/dae
+cp -rf $GITHUB_WORKSPACE/PATCH/dae package/new/dae
 #cp -rf ../immortalwrt_pkg/net/dae ./feeds/packages/net/dae
 #ln -sf ../../../feeds/packages/net/dae ./package/feeds/packages/dae
 #cp -rf ../immortalwrt_pkg/net/daed ./feeds/packages/net/daed

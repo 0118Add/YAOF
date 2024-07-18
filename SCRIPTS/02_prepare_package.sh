@@ -360,8 +360,8 @@ cp -rf ../lede_luci/applications/luci-app-ramfree ./package/new/luci-app-ramfree
 # ServerChan 微信推送
 git clone -b master --depth 1 https://github.com/tty228/luci-app-wechatpush.git package/new/luci-app-serverchan
 # ShadowsocksR Plus+ 依赖
-rm -rf ./feeds/packages/net/shadowsocks-libev
-cp -rf ../immortalwrt_pkg/net/shadowsocks-libev ./package/new/shadowsocks-libev
+#rm -rf ./feeds/packages/net/shadowsocks-libev
+#cp -rf ../immortalwrt_pkg/net/shadowsocks-libev ./package/new/shadowsocks-libev
 cp -rf ../sbwfw876/shadow-tls ./package/new/shadow-tls
 cp -rf ../sbwfw876/tuic-client ./package/new/tuic-client
 cp -rf ../sbwfw876/redsocks2 ./package/new/redsocks2

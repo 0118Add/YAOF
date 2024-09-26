@@ -9,9 +9,18 @@ sed -i 's/Os/O2/g' include/target.mk
 ./scripts/feeds install -a
 # 默认开启 Irqbalance
 sed -i "s/enabled '0'/enabled '1'/g" feeds/packages/utils/irqbalance/files/irqbalance.config
+# 修改IP地址
+sed -i 's/192.168.1.1/10.0.0.1/g' package/base-files/files/bin/config_generate
 # 移除 SNAPSHOT 标签
 sed -i 's,-SNAPSHOT,,g' include/version.mk
 sed -i 's,-SNAPSHOT,,g' package/base-files/image-config.in
+# 更改固件版本信息
+#sed -i "s|DISTRIB_REVISION='.*'|DISTRIB_REVISION=''|g" package/base-files/files/etc/openwrt_release
+sed -i "s|DISTRIB_DESCRIPTION='.*'|DISTRIB_DESCRIPTION='OpenWrt %V'|g" package/base-files/files/etc/openwrt_release
+#sed -i '/luciversion/d' /usr/lib/lua/luci/version.lua
+#echo "luciversion    = \"v'$(date +%Y%m%d)'\"" >> /usr/lib/lua/luci/version.lua
+#sed -i '/luciname/d' /usr/lib/lua/luci/version.lua
+#echo "luciname    = \"LuCI openwrt-23.05\"" >> /usr/lib/lua/luci/version.lua
 # 维多利亚的秘密
 #rm -rf ./scripts/download.pl
 #rm -rf ./include/download.mk
@@ -38,7 +47,7 @@ cp -rf ../PATCH/backport/TCP/* ./target/linux/generic/backport-5.15/
 # x86_csum
 cp -rf ../PATCH/backport/x86_csum/* ./target/linux/generic/backport-5.15/
 # Patch arm64 型号名称
-cp -rf ../immortalwrt_23/target/linux/generic/hack-5.15/312-arm64-cpuinfo-Add-model-name-in-proc-cpuinfo-for-64bit-ta.patch ./target/linux/generic/hack-5.15/312-arm64-cpuinfo-Add-model-name-in-proc-cpuinfo-for-64bit-ta.patch
+cp -rf ../immortalwrt/target/linux/generic/hack-5.15/312-arm64-cpuinfo-Add-model-name-in-proc-cpuinfo-for-64bit-ta.patch ./target/linux/generic/hack-5.15/312-arm64-cpuinfo-Add-model-name-in-proc-cpuinfo-for-64bit-ta.patch
 # BBRv3
 cp -rf ../PATCH/BBRv3/kernel/* ./target/linux/generic/backport-5.15/
 # LRNG
@@ -118,12 +127,19 @@ sed -i 's,noinitrd,noinitrd mitigations=off,g' target/linux/x86/image/grub-pc.cf
 
 
 ### 获取额外的 LuCI 应用、主题和依赖 ###
+# fix PF_RING-8.0.0
+wget -qO - https://github.com/SergeyFilippov/openwrt/commit/e66ca39.patch | patch -p1
 # dae ready
-cp -rf ../immortalwrt_pkg/net/dae ./feeds/packages/net/dae
-ln -sf ../../../feeds/packages/net/dae ./package/feeds/packages/dae
-cp -rf ../lucidaednext/daed-next ./package/new/daed-next
-cp -rf ../lucidaednext/luci-app-daed-next ./package/new/luci-app-daed-next
-rm -rf ./feeds/packages/net/daed
+#cp -rf $GITHUB_WORKSPACE/PATCH/dae package/new/dae
+#cp -rf ../immortalwrt_pkg/net/dae ./feeds/packages/net/dae
+#ln -sf ../../../feeds/packages/net/dae ./package/feeds/packages/dae
+#cp -rf ../immortalwrt_pkg/net/daed ./feeds/packages/net/daed
+#ln -sf ../../../feeds/packages/net/daed ./package/feeds/packages/daed
+#cp -rf ../immortalwrt_luci/applications/luci-app-daed ./feeds/luci/applications/luci-app-daed
+#ln -sf ../../../feeds/luci/applications/luci-app-daed ./package/feeds/luci/luci-app-daed
+#cp -rf ../lucidaednext/daed-next ./package/new/daed-next
+#cp -rf ../lucidaednext/luci-app-daed-next ./package/new/luci-app-daed-next
+#rm -rf ./feeds/packages/net/daed
 git clone -b master --depth 1 https://github.com/QiuSimons/luci-app-daed package/new/luci-app-daed
 # btf
 wget -qO - https://github.com/immortalwrt/immortalwrt/commit/73e5679.patch | patch -p1
@@ -150,8 +166,14 @@ sed -i "s,(br-lan),,g" feeds/luci/modules/luci-base/root/usr/share/rpcd/ucode/lu
 rm -rf ./feeds/luci/modules/luci-mod-status
 cp -rf ../immortalwrt_luci_23/modules/luci-mod-status ./feeds/luci/modules/luci-mod-status
 rm -rf ./feeds/packages/utils/coremark
-cp -rf ../sbw_pkg/coremark ./feeds/packages/utils/coremark
+cp -rf ../immortalwrt_pkg/utils/coremark ./feeds/packages/utils/coremark
+sed -i "s,-O3,-Ofast -funroll-loops -fpeel-loops -fgcse-sm -fgcse-las,g" feeds/packages/utils/coremark/Makefile
 cp -rf ../immortalwrt_23/package/utils/mhz ./package/utils/mhz
+# AList
+cp -rf ../immortalwrt_luci/applications/luci-app-alist ./feeds/luci/applications/luci-app-alist
+ln -sf ../../../feeds/luci/applications/luci-app-alist ./package/feeds/luci/luci-app-alist
+cp -rf ../immortalwrt_pkg/net/alist ./feeds/packages/net/alist
+ln -sf ../../../feeds/packages/net/alist ./package/feeds/packages/alist
 # Airconnect
 git clone https://github.com/sbwml/luci-app-airconnect package/new/airconnect
 sed -i 's,respawn,respawn 3600 5 0,g' package/new/airconnect/airconnect/files/airconnect.init
@@ -169,8 +191,10 @@ git clone -b master --depth 1 https://github.com/BROBIRD/openwrt-r8168.git packa
 patch -p1 <../PATCH/r8168/r8168-fix_LAN_led-for_r4s-from_TL.patch
 # R8152驱动
 cp -rf ../immortalwrt/package/kernel/r8152 ./package/new/r8152
-# r8125驱动
+# Realtek driver - R8125 & R8126 & R8152 & R8101
+git clone https://github.com/sbwml/package_kernel_r8101 package/new/r8101
 git clone https://github.com/sbwml/package_kernel_r8125 package/new/r8125
+git clone https://github.com/sbwml/package_kernel_r8126 package/new/r8126
 # igc-fix
 cp -rf ../lede/target/linux/x86/patches-5.15/996-intel-igc-i225-i226-disable-eee.patch ./target/linux/x86/patches-5.15/996-intel-igc-i225-i226-disable-eee.patch
 # UPX 可执行软件压缩
@@ -180,7 +204,8 @@ cp -rf ../Lienol/tools/ucl ./tools/ucl
 cp -rf ../Lienol/tools/upx ./tools/upx
 # 更换 golang 版本
 rm -rf ./feeds/packages/lang/golang
-cp -rf ../openwrt_pkg_ma/lang/golang ./feeds/packages/lang/golang
+#cp -rf ../openwrt_pkg_ma/lang/golang ./feeds/packages/lang/golang
+git clone https://github.com/sbwml/packages_lang_golang -b 23.x feeds/packages/lang/golang
 # 访问控制
 cp -rf ../lede_luci/applications/luci-app-accesscontrol ./package/new/luci-app-accesscontrol
 cp -rf ../OpenWrt-Add/luci-app-control-weburl ./package/new/luci-app-control-weburl
@@ -223,8 +248,8 @@ pushd feeds/luci
 wget -qO- https://github.com/openwrt/luci/commit/0b5fb915.patch | patch -p1
 popd
 # ChinaDNS
-git clone -b luci --depth 1 https://github.com/QiuSimons/openwrt-chinadns-ng.git package/new/luci-app-chinadns-ng
-cp -rf ../passwall_pkg/chinadns-ng ./package/new/chinadns-ng
+#git clone -b luci --depth 1 https://github.com/QiuSimons/openwrt-chinadns-ng.git package/new/luci-app-chinadns-ng
+#cp -rf ../passwall_pkg/chinadns-ng ./package/new/chinadns-ng
 # CPU 控制相关
 cp -rf ../OpenWrt-Add/luci-app-cpufreq ./feeds/luci/applications/luci-app-cpufreq
 ln -sf ../../../feeds/luci/applications/luci-app-cpufreq ./package/feeds/luci/luci-app-cpufreq
@@ -290,22 +315,36 @@ cp -rf ../mosdns/v2ray-geodata ./package/new/v2ray-geodata
 # 流量监管
 cp -rf ../lede_luci/applications/luci-app-netdata ./package/new/luci-app-netdata
 # 上网 APP 过滤
-git clone -b master --depth 1 https://github.com/sbwml/OpenAppFilter.git package/new/OpenAppFilter
+#git clone -b master --depth 1 https://github.com/destan19/OpenAppFilter.git package/new/OpenAppFilter
+#pushd package/new/OpenAppFilter
+#wget -qO - https://github.com/QiuSimons/OpenAppFilter-destan19/commit/9088cc2.patch | patch -p1
+#wget https://destan19.github.io/assets/oaf/open_feature/feature-cn-22-06-21.cfg -O ./open-app-filter/files/feature.cfg
+#popd
 # OLED 驱动程序
 git clone -b master --depth 1 https://github.com/NateLol/luci-app-oled.git package/new/luci-app-oled
 # homeproxy
-git clone --single-branch --depth 1 -b dev https://github.com/immortalwrt/homeproxy.git package/new/homeproxy
+git clone --depth 1 -b test https://github.com/m0eak/homeproxy package/homeproxy
+sed -i "s/ImmortalWrt/OpenWrt/g" package/homeproxy/po/zh_Hans/homeproxy.po
+sed -i "s/ImmortalWrt proxy/OpenWrt proxy/g" package/homeproxy/htdocs/luci-static/resources/view/homeproxy/{client.js,server.js}
 rm -rf ./feeds/packages/net/sing-box
 cp -rf ../immortalwrt_pkg/net/sing-box ./feeds/packages/net/sing-box
 # OpenClash
 git clone --single-branch --depth 1 -b master https://github.com/vernesong/OpenClash.git package/new/luci-app-openclash
 # Passwall
-cp -rf ../passwall_luci/luci-app-passwall ./package/new/luci-app-passwall
-wget -P package/new/luci-app-passwall/ https://github.com/QiuSimons/OpenWrt-Add/raw/master/move_2_services.sh
-chmod -R 755 ./package/new/luci-app-passwall/move_2_services.sh
-pushd package/new/luci-app-passwall
-bash move_2_services.sh
-popd
+#cp -rf ../passwall_luci/luci-app-passwall ./package/new/luci-app-passwall
+#wget -P package/new/luci-app-passwall/ https://github.com/QiuSimons/OpenWrt-Add/raw/master/move_2_services.sh
+#chmod -R 755 ./package/new/luci-app-passwall/move_2_services.sh
+#pushd package/new/luci-app-passwall
+#bash move_2_services.sh
+#popd
+git clone --single-branch --depth 1 -b main https://github.com/xiaorouji/openwrt-passwall package/new/openwrt-passwall
+#git clone --single-branch --depth 1 -b luci-smartdns-dev https://github.com/xiaorouji/openwrt-passwall package/new/openwrt-passwall
+rm -rf ./feeds/luci/applications/luci-app-smartdns
+rm -rf ./feeds/packages/net/smartdns
+cp -rf ../immortalwrt_luci/applications/luci-app-smartdns ./feeds/luci/applications/luci-app-smartdns
+ln -sf ../../../feeds/luci/applications/luci-app-smartdns ./package/feeds/luci/luci-app-smartdns
+cp -rf ../immortalwrt_pkg/net/smartdns ./feeds/packages/net/smartdns
+
 cp -rf ../passwall_pkg/tcping ./package/new/tcping
 cp -rf ../passwall_pkg/trojan-go ./package/new/trojan-go
 cp -rf ../passwall_pkg/brook ./package/new/brook
@@ -329,7 +368,7 @@ checkipv6.synology.com
 ntp.aliyun.com
 cn.ntp.org.cn
 ntp.ntsc.ac.cn
-' >>./package/new/luci-app-passwall/root/usr/share/passwall/rules/direct_host
+' >>./package/new/openwrt-passwall/luci-app-passwall/root/usr/share/passwall/rules/direct_host
 # qBittorrent 下载
 cp -rf ../lede_luci/applications/luci-app-qbittorrent ./package/new/luci-app-qbittorrent
 cp -rf ../lede_pkg/net/qBittorrent-static ./package/new/qBittorrent-static
@@ -340,27 +379,28 @@ cp -rf ../lede_pkg/libs/rblibtorrent ./package/new/rblibtorrent
 # 清理内存
 cp -rf ../lede_luci/applications/luci-app-ramfree ./package/new/luci-app-ramfree
 # ServerChan 微信推送
-git clone -b master --depth 1 https://github.com/tty228/luci-app-wechatpush.git package/new/luci-app-serverchan
+#git clone -b master --depth 1 https://github.com/tty228/luci-app-wechatpush.git package/new/luci-app-serverchan
 # ShadowsocksR Plus+ 依赖
-rm -rf ./feeds/packages/net/shadowsocks-libev
-cp -rf ../lede_pkg/net/shadowsocks-libev ./package/new/shadowsocks-libev
+#rm -rf ./feeds/packages/net/shadowsocks-libev
+#cp -rf ../immortalwrt_pkg/net/shadowsocks-libev ./package/new/shadowsocks-libev
 cp -rf ../sbwfw876/shadow-tls ./package/new/shadow-tls
-cp -rf ../sbwfw876/v2dat ./package/new/v2dat
 cp -rf ../sbwfw876/tuic-client ./package/new/tuic-client
 cp -rf ../sbwfw876/redsocks2 ./package/new/redsocks2
 cp -rf ../sbwfw876/trojan ./package/new/trojan
 cp -rf ../sbwfw876/tcping ./package/new/tcping
+cp -rf ../sbwfw876/chinadns-ng ./package/new/chinadns-ng
 cp -rf ../sbwfw876/dns2tcp ./package/new/dns2tcp
-cp -rf ../sbwfw876/gn ./package/new/gn
+cp -rf ../ssrp/gn ./package/new/gn
 cp -rf ../sbwfw876/shadowsocksr-libev ./package/new/shadowsocksr-libev
 cp -rf ../sbwfw876/simple-obfs ./package/new/simple-obfs
 cp -rf ../sbwfw876/naiveproxy ./package/new/naiveproxy
 cp -rf ../sbwfw876/v2ray-core ./package/new/v2ray-core
-cp -rf ../passwall_pkg/hysteria ./package/new/hysteria
-cp -rf ../sbwfw876/sagernet-core ./package/new/sagernet-core
+cp -rf ../sbwfw876/hysteria ./package/new/hysteria
 rm -rf ./feeds/packages/net/xray-core
-cp -rf ../immortalwrt_pkg/net/xray-core ./feeds/packages/net/xray-core
-sed -i '/CURDIR/d' feeds/packages/net/xray-core/Makefile
+cp -rf ../sbwfw876/xray-core ./package/new/xray-core
+#cp -rf ../immortalwrt_pkg/net/xray-core ./feeds/packages/net/xray-core
+#cp -rf ../ssrp/xray-core ./feeds/packages/net/xray-core
+#sed -i '/CURDIR/d' ./feeds/packages/net/xray-core/Makefile
 cp -rf ../sbwfw876/v2ray-plugin ./package/new/v2ray-plugin
 cp -rf ../sbwfw876/shadowsocks-rust ./package/new/shadowsocks-rust
 cp -rf ../sbwfw876/lua-neturl ./package/new/lua-neturl
@@ -376,6 +416,7 @@ popd
 pushd package/new/luci-app-ssr-plus
 sed -i '/Clang.CN.CIDR/a\o:value("https://fastly.jsdelivr.net/gh/QiuSimons/Chnroute@master/dist/chnroute/chnroute.txt", translate("QiuSimons/Chnroute"))' luasrc/model/cbi/shadowsocksr/advanced.lua
 popd
+sed -i 's/ShadowSocksR Plus+/SSR Plus+/g' package/new/luci-app-ssr-plus/luasrc/controller/shadowsocksr.lua
 # v2raya
 git clone --depth 1 https://github.com/zxlhhyccc/luci-app-v2raya.git package/new/luci-app-v2raya
 rm -rf ./feeds/packages/net/v2raya
@@ -388,6 +429,8 @@ wget -qO - https://github.com/Lienol/openwrt-package/pull/39.patch | patch -p1
 popd
 sed -i '/socat\.config/d' feeds/packages/net/socat/Makefile
 # natmap
+rm -rf ./feeds/packages/net/natmap
+rm -rf ./feeds/luci/applications/luci-app-natmap
 git clone --depth 1 --branch master --single-branch --no-checkout https://github.com/muink/luci-app-natmapt.git package/luci-app-natmapt
 pushd package/luci-app-natmapt
 umask 022
@@ -418,6 +461,7 @@ cp -rf ../immortalwrt_pkg/libs/toml11 ./feeds/packages/libs/toml11
 ln -sf ../../../feeds/packages/libs/toml11 ./package/feeds/packages/toml11
 # 网易云音乐解锁
 git clone -b js --depth 1 https://github.com/UnblockNeteaseMusic/luci-app-unblockneteasemusic.git package/new/UnblockNeteaseMusic
+sed -i 's/解除网易云音乐播放限制/音乐解锁/g' package/new/UnblockNeteaseMusic/root/usr/share/luci/menu.d/luci-app-unblockneteasemusic.json
 # uwsgi
 sed -i 's,procd_set_param stderr 1,procd_set_param stderr 0,g' feeds/packages/net/uwsgi/files/uwsgi.init
 sed -i 's,buffer-size = 10000,buffer-size = 131072,g' feeds/packages/net/uwsgi/files-luci-support/luci-webui.ini
@@ -438,15 +482,18 @@ cp -rf ../lede_pkg/net/uugamebooster ./package/new/uugamebooster
 cp -rf ../lede_luci/applications/luci-app-vlmcsd ./package/new/luci-app-vlmcsd
 cp -rf ../lede_pkg/net/vlmcsd ./package/new/vlmcsd
 # VSSR
-git clone -b master --depth 1 https://github.com/jerrykuku/luci-app-vssr.git package/new/luci-app-vssr
+git clone -b master --depth 1 https://github.com/0118Add/luci-app-vssr.git package/new/luci-app-vssr
 git clone -b master --depth 1 https://github.com/jerrykuku/lua-maxminddb.git package/new/lua-maxminddb
 # 网络唤醒
 cp -rf ../zxlhhyccc/zxlhhyccc/luci-app-wolplus ./package/new/luci-app-wolplus
-# 流量监视
-git clone -b master --depth 1 https://github.com/brvphoenix/wrtbwmon.git package/new/wrtbwmon
-git clone -b master --depth 1 https://github.com/brvphoenix/luci-app-wrtbwmon.git package/new/luci-app-wrtbwmon
-# 迅雷快鸟宽带加速
-git clone --depth 1 https://github.com/kiddin9/luci-app-xlnetacc.git package/lean/luci-app-xlnetacc
+# mihomo
+git clone https://github.com/morytyann/OpenWrt-mihomo  package/openwrt-mihomo
+sed -i 's/MihomoTProxy/Mihomo/g' package/openwrt-mihomo/luci-app-mihomo/po/zh_Hans/mihomo.po
+sed -i 's/MihomoTProxy/Mihomo/g' package/openwrt-mihomo/luci-app-mihomo/root/usr/share/luci/menu.d/luci-app-mihomo.json
+sed -i 's/MihomoTProxy/Mihomo/g' package/openwrt-mihomo/luci-app-mihomo/htdocs/luci-static/resources/view/mihomo/config.js
+# neko
+#git clone -b luci-app-neko --depth 1 https://github.com/Thaolga/neko package/neko
+#sed -i 's/NekoClash/Neko/g' package/neko/luci-app-neko/luasrc/controller/neko.lua
 # Zerotier
 cp -rf ../immortalwrt_luci/applications/luci-app-zerotier ./feeds/luci/applications/luci-app-zerotier
 cp -rf ../OpenWrt-Add/move_2_services.sh ./feeds/luci/applications/luci-app-zerotier/move_2_services.sh
@@ -457,6 +504,7 @@ popd
 ln -sf ../../../feeds/luci/applications/luci-app-zerotier ./package/feeds/luci/luci-app-zerotier
 rm -rf ./feeds/packages/net/zerotier
 cp -rf ../immortalwrt_pkg/net/zerotier ./feeds/packages/net/zerotier
+sed -i 's/vpn/services/g' ./feeds/luci/applications/luci-app-zerotier/root/usr/share/luci/menu.d/luci-app-zerotier.json
 # watchcat
 echo > ./feeds/packages/utils/watchcat/files/watchcat.config
 # sirpdboy
@@ -504,9 +552,10 @@ wget -qO - https://github.com/coolsnowwolf/lede/commit/0e29809.patch | patch -p1
 wget -qO - https://github.com/coolsnowwolf/lede/commit/eb70dad.patch | patch -p1
 wget -qO - https://github.com/coolsnowwolf/lede/commit/7ba3ec0.patch | patch -p1
 cp -rf ../lede/package/qca/shortcut-fe/simulated-driver ./package/lean/shortcut-fe/simulated-driver
+
 # natflow
 cp -rf ../xwrt/natflow ./package/new/natflow
-# patch -p1 < ../PATCH/firewall/luci-app-firewall_add_natflow_switch.patch
+patch -p1 < ../PATCH/firewall/luci-app-firewall_add_natflow_switch.patch
 
 # NAT6
 git clone --depth 1 https://github.com/sbwml/packages_new_nat6 package/new/packages_new_nat6
@@ -516,6 +565,18 @@ patch -p1 <../../../PATCH/firewall/03-luci-app-firewall_add_ipv6-nat.patch
 # Patch LuCI 以支持自定义 nft 规则
 patch -p1 <../../../PATCH/firewall/04-luci-add-firewall4-nft-rules-file.patch
 popd
+
+# 修改连接数
+sed -i 's/net.netfilter.nf_conntrack_max=.*/net.netfilter.nf_conntrack_max=65535/g' package/kernel/linux/files/sysctl-nf-conntrack.conf
+# 修正连接数
+sed -i '/customized in this file/a net.netfilter.nf_conntrack_max=165535' package/base-files/files/etc/sysctl.conf
+
+# 修改系统文件
+sed -i 's/WireGuard/WiGd状态/g' feeds/luci/protocols/luci-proto-wireguard/root/usr/share/luci/menu.d/luci-proto-wireguard.json
+curl -fsSL https://raw.githubusercontent.com/0118Add/X86_64-Test/main/general/25_storage.js > ./feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/25_storage.js
+curl -fsSL https://raw.githubusercontent.com/0118Add/X86_64-Test/main/general/30_network.js > ./feeds/luci/modules/luci-mod-status/htdocs/luci-static/resources/view/status/include/30_network.js
+rm -rf feeds/packages/libs/libpfring
+cp -rf $GITHUB_WORKSPACE/PATCH/libpfring feeds/packages/libs/libpfring
 
 #LTO/GC
 # Grub 2
@@ -527,3 +588,7 @@ sed -i 's,gc-sections,gc-sections no-lto,g' feeds/packages/net/nginx/Makefile
 # libsodium
 sed -i 's,no-mips16,no-mips16 no-lto,g' feeds/packages/libs/libsodium/Makefile
 #exit 0
+
+# comment out the following line to restore the full description
+#sed -i '/# timezone/i grep -q '\''/tmp/sysinfo/model'\'' /etc/rc.local || sudo sed -i '\''/exit 0/i [ "$(cat /sys\\/class\\/dmi\\/id\\/sys_vendor 2>\\/dev\\/null)" = "Default string" ] \&\& echo "x86_64" > \\/tmp\\/sysinfo\\/model'\'' /etc/rc.local\n' package/new/default-settings/default/zzz-default-settings
+#sed -i '/# timezone/i sed -i "s/\\(DISTRIB_DESCRIPTION=\\).*/\\1'\''OpenWrt $(sed -n "s/DISTRIB_DESCRIPTION='\''OpenWrt \\([^ ]*\\) .*/\\1/p" /etc/openwrt_release)'\'',/" /etc/openwrt_release\nsource /etc/openwrt_release \&\& sed -i -e "s/distversion\\s=\\s\\".*\\"/distversion = \\"$DISTRIB_ID $DISTRIB_RELEASE ($DISTRIB_REVISION)\\"/g" -e '\''s/distname    = .*$/distname    = ""/g'\'' /usr/lib/lua/luci/version.lua\nsed -i "s/luciname    = \\".*\\"/luciname    = \\"LuCI openwrt-23.05\\"/g" /usr/lib/lua/luci/version.lua\nsed -i "s/luciversion = \\".*\\"/luciversion = \\"v'$(date +%Y%m%d)'\\"/g" /usr/lib/lua/luci/version.lua\necho "export const revision = '\''v'$(date +%Y%m%d)'\'\'', branch = '\''LuCI openwrt-23.05'\'';" > /usr/share/ucode/luci/version.uc\n/etc/init.d/rpcd restart\n' package/new/default-settings/default/zzz-default-settings
